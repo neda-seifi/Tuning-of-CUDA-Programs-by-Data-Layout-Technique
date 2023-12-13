@@ -193,3 +193,27 @@ int CMM_CUDA_with_Data_Layout(int* dim, int n, float *time)
 
 	return result[0];
 }
+
+__global__ void matrixMultiplyKernel(float *A, float *B, float *C){
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+  int row = blockIdx.y * blockDim.y + ty;
+  int col = blockIdx.x * blockDim.x + tx;
+  // Compute portion of C[row, col] here
+  C[row * N + col] += A[row * N + ty] * B[ty * N + col];
+}
+
+dim3 blocks(N / 16, N / 16);
+dim3 threads(16, 16);
+matrixMultiplyKernel<<<blocks, threads>>>(A, B, C);
+
+// Stream 1 computes diagonal i
+cudaMemcpyAsync(d_A, h_A, size, cudaMemcpyHostToDevice, stream1);
+matrixMultiplyKernel<<<...>>>(d_A, d_B, d_C, stream1);
+// Stream 2 transfers data needed for next diagonal
+cudaMemcpyAsync(d_A2, h_A2, size, cudaMemcpyHostToDevice, stream2);
+// Synchronize streams
+cudaStreamSynchronize(stream1);
+cudaStreamSynchronize(stream2);
+
+
